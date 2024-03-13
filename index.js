@@ -1,11 +1,43 @@
-import * as Scry from "scryfall-sdk";
 import { Chart } from "chart.js";
 
-async function search(q) {
+function pause(delay) {
+    return new Promise((res, rej) => setTimeout(res, delay));
+}
+
+class ScryfallError extends Error {
+    constructor(page) {
+        super(page.details || page.warnings[0]);
+        this.name = this.constructor.name;
+    }
+}
+
+async function* get_list(uri, delay = 750) {
+    while (true) {
+        // TODO just how much error handling do I want?
+        const resp = await fetch(uri),
+            page = await resp.json();
+        if (page.object === "error" ||
+            (page.total_cards > 1000 && page.warnings instanceof Array)) {
+            throw new ScryfallError(page);
+        }
+        for (const item of page.data) yield item;
+        if (!page.has_more) return;
+        uri = page.next_page;
+        await pause(delay);
+    }
+}
+
+const SCRYFALL_SEARCH = "https://api.scryfall.com/cards/search";
+function search(q) {
+    return get_list(SCRYFALL_SEARCH + "?" + new URLSearchParams({q}));
+}
+window.search = search;
+
+async function build_histo(q) {
     const histo = new Map();
     let min_year = Infinity,
         max_year = 0;
-    for await (const card of Scry.Cards.search(q).all()) {
+    for await (const card of search(q)) {
         const y = parseInt(card.released_at.slice(0, 4), 10);
         histo.set(y, (histo.get(y) || 0) + 1);
         min_year = Math.min(min_year, y);
@@ -15,19 +47,25 @@ async function search(q) {
 }
 
 function get_query() {
-    const q0 = document.querySelector("#query").value,
-          fp = document.querySelector("#firstprint").checked;
+    const q0 = document.querySelector("#query").value.trim();
+    if (q0 === "") return undefined;
+    const fp = document.querySelector("#firstprint").checked;
     return fp ? "is:first-printing " + q0 : q0;
 }
 
 function do_submit(e) {
     e.preventDefault();
-    const q = get_query(),
-          thr = document.querySelector("#throbber");
+    const q = get_query();
+    if (typeof q === "undefined") return;
+    const thr = document.querySelector("#throbber");
     thr.style.display = "inline-block";
-    // TODO report API errors?
-    search(q).then(results => {
+    build_histo(q).then(results => {
         do_plot(results);
+    }, err => {
+        if (err instanceof ScryfallError) {
+            // TODO something better
+            alert(err.message);
+        }
     }).finally(() => {
         thr.style.display = "none";
     });
