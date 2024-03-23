@@ -57,7 +57,9 @@ function do_submit(e) {
     e.preventDefault();
     const q = get_query();
     if (typeof q === "undefined") return;
-    const thr = document.querySelector("#throbber");
+    const inp = document.querySelector("#inputs"),
+        thr = document.querySelector("#throbber");
+    inp.disabled = true;
     thr.style.display = "inline-block";
     build_histo(q).then(results => {
         do_plot(results);
@@ -67,6 +69,7 @@ function do_submit(e) {
             alert(err.message);
         }
     }).finally(() => {
+        inp.disabled = false;
         thr.style.display = "none";
     });
 }
