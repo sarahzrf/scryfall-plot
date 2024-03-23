@@ -28,12 +28,18 @@
 <body>
   <form id="form">
     <fieldset id="inputs" style="display: contents;">
-      <input type="text" id="query">
+      <input type="text" id="query" name="query">
       <input type="submit" value="Graph!">
       <i id="throbber" class="ss ss-tsp"></i>
       <br>
-      <input type="checkbox" id="firstprint" name="firstprint" checked>
-      <label for="firstprint">First printings only</label>
+      <input type="radio" name="unique" value="cards" id="cards" checked>
+      <label for="cards">Count unique cards</label>
+      <br>
+      <input type="radio" name="unique" value="art" id="art">
+      <label for="art">Count unique art</label>
+      <br>
+      <input type="radio" name="unique" value="prints" id="prints">
+      <label for="prints">Count all prints</label>
     </fieldset>
   </form>
   <canvas id="results"></canvas>

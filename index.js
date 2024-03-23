@@ -28,16 +28,16 @@ async function* get_list(uri, delay = 750) {
 }
 
 const SCRYFALL_SEARCH = "https://api.scryfall.com/cards/search";
-function search(q) {
-    return get_list(SCRYFALL_SEARCH + "?" + new URLSearchParams({q}));
+function search(qu) {
+    return get_list(SCRYFALL_SEARCH + "?" + new URLSearchParams(qu));
 }
 window.search = search;
 
-async function build_histo(q) {
+async function build_histo(qu) {
     const histo = new Map();
     let min_year = Infinity,
         max_year = 0;
-    for await (const card of search(q)) {
+    for await (const card of search(qu)) {
         const y = parseInt(card.released_at.slice(0, 4), 10);
         histo.set(y, (histo.get(y) || 0) + 1);
         min_year = Math.min(min_year, y);
@@ -47,21 +47,24 @@ async function build_histo(q) {
 }
 
 function get_query() {
-    const q0 = document.querySelector("#query").value.trim();
-    if (q0 === "") return undefined;
-    const fp = document.querySelector("#firstprint").checked;
-    return fp ? "is:first-printing " + q0 : q0;
+    const dat = new FormData(document.querySelector("#form"));
+    let q = dat.get("query");
+    const unique = dat.get("unique");
+    if (!q || !q.trim() || !unique) return undefined;
+    q = q.trim();
+    if (unique === "cards") q = "is:first-printing " + q;
+    return {q, unique};
 }
 
 function do_submit(e) {
     e.preventDefault();
-    const q = get_query();
-    if (typeof q === "undefined") return;
+    const qu = get_query();
+    if (typeof qu === "undefined") return;
     const inp = document.querySelector("#inputs"),
         thr = document.querySelector("#throbber");
     inp.disabled = true;
     thr.style.display = "inline-block";
-    build_histo(q).then(results => {
+    build_histo(qu).then(results => {
         do_plot(results);
     }, err => {
         if (err instanceof ScryfallError) {
