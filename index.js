@@ -31,9 +31,26 @@ const SCRYFALL_SEARCH = "https://api.scryfall.com/cards/search";
 function search(qu) {
     return get_list(SCRYFALL_SEARCH + "?" + new URLSearchParams(qu));
 }
-window.search = search;
 
-async function build_histo(qu) {
+function params(q, unique) {
+    if (unique === "cards") q = "is:first-printing " + q;
+    return {q, unique};
+}
+
+const year_counts = new Map();
+async function year_count(year, unique) {
+    const k = [year, unique];
+    if (year_counts.has(k)) return year_counts.get(k);
+    const qu = params("year=" + year.toString(10), unique),
+          uri = SCRYFALL_SEARCH + "?" + new URLSearchParams(qu),
+          resp = await fetch(uri),
+          page = await resp.json();
+    if (page.object === "error") throw new ScryfallError(page);
+    year_counts.set(k, page.total_cards);
+    return page.total_cards;
+}
+
+async function build_histo(qu, percent) {
     const histo = new Map();
     let min_year = Infinity,
         max_year = 0;
@@ -42,6 +59,11 @@ async function build_histo(qu) {
         histo.set(y, (histo.get(y) || 0) + 1);
         min_year = Math.min(min_year, y);
         max_year = Math.max(max_year, y);
+    }
+    if (percent) {
+        for (const [y, count] of histo) {
+            histo.set(y, 100 * count / await year_count(y, qu.unique));
+        }
     }
     return {histo, min_year, max_year};
 }
@@ -52,8 +74,7 @@ function get_query() {
     const unique = dat.get("unique");
     if (!q || !q.trim() || !unique) return undefined;
     q = q.trim();
-    if (unique === "cards") q = "is:first-printing " + q;
-    return {q, unique};
+    return params(q, unique);
 }
 
 function do_submit(e) {
@@ -64,12 +85,16 @@ function do_submit(e) {
         thr = document.querySelector("#throbber");
     inp.disabled = true;
     thr.style.display = "inline-block";
-    build_histo(qu).then(results => {
+    const percent = document.querySelector("#percent").checked;
+    build_histo(qu, percent).then(results => {
         do_plot(results);
     }, err => {
         if (err instanceof ScryfallError) {
             // TODO something better
             alert(err.message);
+        }
+        else {
+            console.error(err);
         }
     }).finally(() => {
         inp.disabled = false;
